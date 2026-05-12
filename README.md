@@ -7,6 +7,7 @@ Implementation status: Phase 1 through Phase 9 from `PLAN.md` are now covered. H
 ## Capabilities
 
 - Plugin skeleton and owner-private command gate.
+- Natural-language `/desk chat` agent loop for guarded LLM desktop tasks.
 - Loopback daemon pairing with HMAC, timestamp, and nonce replay protection.
 - Read-only desktop observation with sensitive window redaction.
 - Mouse, keyboard, and window focus interactions with risk escalation.
@@ -27,6 +28,8 @@ Implementation status: Phase 1 through Phase 9 from `PLAN.md` are now covered. H
 - `/desk observe [screen|active]`: capture the full screen or active window if no sensitive window would be exposed.
 - `/desk windows`: list visible windows with sensitive titles redacted.
 - `/desk summarize`: return a compact desktop/window/process summary.
+- `/desk chat <task>`: ask the natural-language agent to observe, plan, act, re-observe, and summarize a desktop task.
+- `/desk agent on|off|reset|status`: manage continuous agent mode and short-term agent state. Ordinary private messages are only captured when both agent mode and `agent_auto_capture_private_messages` are enabled.
 - `/desk click <x> <y>`, `/desk double-click <x> <y>`, `/desk right-click <x> <y>`, `/desk scroll <x> <y> <delta>`, `/desk drag <x1> <y1> <x2> <y2> [duration_ms]`: mouse controls.
 - `/desk type <text>` and `/desk hotkey <ctrl+s>`: keyboard controls. Risky text or keys require approval.
 - `/desk focus <window_id>`: focus a visible window from `/desk windows`.
@@ -120,6 +123,25 @@ The isolated browser uses `.deskwarden/browser_profile` and does not reuse the u
 - Browser downloads are saved into the isolated downloads directory.
 - Browser login, payment, identity, submission, and credential-like actions require approval.
 - Audit records redact file content, typed text, tokens, signatures, credentials, and secrets.
+
+## Natural Language Agent
+
+Start the daemon, pair it, and run `/desk start` as usual. Then use:
+
+```text
+/desk chat 帮我查看当前窗口并告诉我下一步应该点哪里
+```
+
+The agent first observes the desktop summary and screenshot, asks the AstrBot model for one structured tool call, executes only whitelisted tools, and re-observes after UI actions. File writes, shell commands, downloads, login/payment/delete/submit-like actions, and configured high-risk interactions stop at an approval card and continue only after `/desk approve <id>`.
+
+Useful config keys:
+
+- `agent_enabled`: enables `/desk chat`.
+- `agent_auto_capture_private_messages`: lets `/desk agent on` treat ordinary owner private messages as tasks.
+- `max_agent_steps`: limits one agent run.
+- `llm_vision_enabled`: allows compatible AstrBot providers to receive screenshot references.
+- `approval_for_all_mutations`: requires approval even for otherwise low-risk agent interactions.
+- `agent_summary_limit`: caps observation/result context sent to the model.
 
 ## Tests
 

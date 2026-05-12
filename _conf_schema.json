@@ -22,5 +22,41 @@
     "type": "float",
     "hint": "Loopback requests should normally use a short timeout.",
     "default": 3.0
+  },
+  "agent_enabled": {
+    "description": "Enable the natural-language DeskWarden agent entrypoint.",
+    "type": "bool",
+    "hint": "When enabled, /desk chat can run guarded LLM desktop tasks.",
+    "default": true
+  },
+  "agent_auto_capture_private_messages": {
+    "description": "Allow agent mode to capture non-command owner private messages.",
+    "type": "bool",
+    "hint": "Keep disabled unless you want ordinary owner private messages to be treated as desktop tasks while /desk agent on is active.",
+    "default": false
+  },
+  "max_agent_steps": {
+    "description": "Maximum tool steps per /desk chat run.",
+    "type": "int",
+    "hint": "Prevents runaway desktop loops. Values are clamped to 1 through 30.",
+    "default": 8
+  },
+  "llm_vision_enabled": {
+    "description": "Pass screenshot references to compatible AstrBot model providers.",
+    "type": "bool",
+    "hint": "If the current model provider does not support images, DeskWarden falls back to text-only observations.",
+    "default": true
+  },
+  "approval_for_all_mutations": {
+    "description": "Require approval for all agent-initiated desktop and browser interactions.",
+    "type": "bool",
+    "hint": "The default uses DeskWarden's normal risk classifier; enable for a stricter agent mode.",
+    "default": false
+  },
+  "agent_summary_limit": {
+    "description": "Maximum characters of observation and tool result context sent to the agent.",
+    "type": "int",
+    "hint": "Values are clamped to 500 through 20000.",
+    "default": 4000
   }
 }
