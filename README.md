@@ -68,6 +68,10 @@ Send the token to the bot in an owner private chat:
 /desk pair <one-time token>
 ```
 
+If DeskWarden refuses the command because `owner_id` is not configured, copy the
+reported `sender_id` into the plugin `owner_id` config and retry from a private
+chat with the bot.
+
 State, audit logs, screenshots, browser profile, downloads, and backups default under `.deskwarden/`. Do not commit that directory.
 
 ## Daemon Options

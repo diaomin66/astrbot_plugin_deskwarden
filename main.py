@@ -96,8 +96,9 @@ class DeskWardenPlugin(Star):
     @desk.command("start")
     async def start(self, event: AstrMessageEvent):
         self._stop_event(event)
-        if not self._is_authorized(event):
-            yield event.plain_result(REFUSAL_MESSAGE)
+        refusal = self._authorization_refusal(event)
+        if refusal:
+            yield event.plain_result(refusal)
             return
 
         if self.state == SessionState.PAUSED:
@@ -118,16 +119,18 @@ class DeskWardenPlugin(Star):
     @desk.command("status")
     async def status(self, event: AstrMessageEvent):
         self._stop_event(event)
-        if not self._is_authorized(event):
-            yield event.plain_result(REFUSAL_MESSAGE)
+        refusal = self._authorization_refusal(event)
+        if refusal:
+            yield event.plain_result(refusal)
             return
         yield event.plain_result(await self._format_status("DeskWarden status:"))
 
     @desk.command("pair")
     async def pair(self, event: AstrMessageEvent, token: str = ""):
         self._stop_event(event)
-        if not self._is_authorized(event):
-            yield event.plain_result(REFUSAL_MESSAGE)
+        refusal = self._authorization_refusal(event)
+        if refusal:
+            yield event.plain_result(refusal)
             return
 
         pairing_token = (token or self._extract_command_argument(event, "pair")).strip()
@@ -170,8 +173,9 @@ class DeskWardenPlugin(Star):
     @desk.command("stop")
     async def stop(self, event: AstrMessageEvent):
         self._stop_event(event)
-        if not self._is_authorized(event):
-            yield event.plain_result(REFUSAL_MESSAGE)
+        refusal = self._authorization_refusal(event)
+        if refusal:
+            yield event.plain_result(refusal)
             return
 
         self.state = SessionState.IDLE
@@ -183,8 +187,9 @@ class DeskWardenPlugin(Star):
     @desk.command("pause")
     async def pause(self, event: AstrMessageEvent):
         self._stop_event(event)
-        if not self._is_authorized(event):
-            yield event.plain_result(REFUSAL_MESSAGE)
+        refusal = self._authorization_refusal(event)
+        if refusal:
+            yield event.plain_result(refusal)
             return
 
         if self.state == SessionState.IDLE:
@@ -200,8 +205,9 @@ class DeskWardenPlugin(Star):
     @desk.command("resume")
     async def resume(self, event: AstrMessageEvent):
         self._stop_event(event)
-        if not self._is_authorized(event):
-            yield event.plain_result(REFUSAL_MESSAGE)
+        refusal = self._authorization_refusal(event)
+        if refusal:
+            yield event.plain_result(refusal)
             return
 
         if self.state != SessionState.PAUSED:
@@ -364,8 +370,9 @@ class DeskWardenPlugin(Star):
     @desk.command("approve")
     async def approve(self, event: AstrMessageEvent, proposal_id: str = ""):
         self._stop_event(event)
-        if not self._is_authorized(event):
-            yield event.plain_result(REFUSAL_MESSAGE)
+        refusal = self._authorization_refusal(event)
+        if refusal:
+            yield event.plain_result(refusal)
             return
 
         action_id = (proposal_id or self._extract_command_argument(event, "approve")).strip()
@@ -439,8 +446,9 @@ class DeskWardenPlugin(Star):
     @desk.command("deny")
     async def deny(self, event: AstrMessageEvent, proposal_id: str = ""):
         self._stop_event(event)
-        if not self._is_authorized(event):
-            yield event.plain_result(REFUSAL_MESSAGE)
+        refusal = self._authorization_refusal(event)
+        if refusal:
+            yield event.plain_result(refusal)
             return
 
         action_id = (proposal_id or self._extract_command_argument(event, "deny")).strip()
@@ -648,8 +656,9 @@ class DeskWardenPlugin(Star):
         return self._format_approval_card(proposal)
 
     async def _owner_guard(self, event: AstrMessageEvent, require_active: bool = True) -> str | None:
-        if not self._is_authorized(event):
-            return REFUSAL_MESSAGE
+        refusal = self._authorization_refusal(event)
+        if refusal:
+            return refusal
         if not self.shared_secret:
             self.state = SessionState.LOCKED
             return await self._format_status("DeskWarden is not paired. Run /desk pair <token> first.")
@@ -665,31 +674,95 @@ class DeskWardenPlugin(Star):
         return None
 
     def _is_authorized(self, event: AstrMessageEvent) -> bool:
-        is_private = self._is_private_chat(event)
+        return self._authorization_refusal(event) is None
+
+    def _authorization_refusal(self, event: AstrMessageEvent) -> str | None:
         sender_id = str(event.get_sender_id()).strip()
+        is_private = self._is_private_chat(event)
         allowed = bool(self.owner_id) and is_private and sender_id == self.owner_id
 
-        if not allowed:
-            logger.warning(
-                "DeskWarden refused command: sender_id=%s private=%s owner_configured=%s",
-                sender_id,
-                is_private,
-                bool(self.owner_id),
-            )
+        if allowed:
+            return None
 
-        return allowed
+        logger.warning(
+            "DeskWarden refused command: sender_id=%s private=%s owner_configured=%s",
+            sender_id,
+            is_private,
+            bool(self.owner_id),
+        )
+
+        if not self.owner_id:
+            return (
+                f"{REFUSAL_MESSAGE}\n"
+                "reason: owner_id is not configured\n"
+                f"sender_id: {sender_id}\n"
+                "Set owner_id to this sender_id in the plugin config, then use a private chat."
+            )
+        if not is_private:
+            return (
+                f"{REFUSAL_MESSAGE}\n"
+                "reason: command was not received as a private chat\n"
+                f"sender_id: {sender_id}"
+            )
+        return (
+            f"{REFUSAL_MESSAGE}\n"
+            "reason: sender_id does not match configured owner_id\n"
+            f"sender_id: {sender_id}"
+        )
 
     @staticmethod
     def _is_private_chat(event: AstrMessageEvent) -> bool:
-        if hasattr(event, "is_private_chat"):
-            return bool(event.is_private_chat())
+        group_id = ""
+        group_signal_seen = False
+        if hasattr(event, "get_group_id"):
+            group_signal_seen = True
+            group_id = DeskWardenPlugin._event_value(event, "get_group_id")
 
-        group_id = event.get_group_id() if hasattr(event, "get_group_id") else ""
-        if not group_id:
-            message_obj = getattr(event, "message_obj", None)
+        message_obj = getattr(event, "message_obj", None)
+        if not _has_event_value(group_id) and message_obj is not None and hasattr(message_obj, "group_id"):
+            group_signal_seen = True
             group_id = getattr(message_obj, "group_id", "")
 
-        return not bool(group_id)
+        if _has_event_value(group_id):
+            return False
+
+        message_type = DeskWardenPlugin._event_value(event, "get_message_type")
+        if not _has_event_value(message_type) and message_obj is not None:
+            message_type = getattr(message_obj, "type", "")
+        message_type_text = _event_text(message_type)
+        if message_type_text:
+            if any(token in message_type_text for token in ("group", "guild", "channel")):
+                return False
+            if any(token in message_type_text for token in ("private", "friend", "direct")):
+                return True
+
+        origin_text = _event_text(DeskWardenPlugin._event_value(event, "unified_msg_origin"))
+        if origin_text:
+            if any(token in origin_text for token in ("group", "guild", "channel")):
+                return False
+            if any(token in origin_text for token in ("private", "friend", "direct")):
+                return True
+
+        if group_signal_seen:
+            return True
+
+        private_signal = DeskWardenPlugin._event_value(event, "is_private_chat")
+        if private_signal is not None:
+            return bool(private_signal)
+
+        return False
+
+    @staticmethod
+    def _event_value(event: AstrMessageEvent, attr_name: str) -> Any:
+        if not hasattr(event, attr_name):
+            return None
+        value = getattr(event, attr_name)
+        if callable(value):
+            try:
+                return value()
+            except TypeError:
+                return None
+        return value
 
     @staticmethod
     def _get_session_id(event: AstrMessageEvent) -> str:
@@ -954,6 +1027,20 @@ def _float_config(value: Any, default: float) -> float:
 
 def _yes_no(value: Any) -> str:
     return "yes" if bool(value) else "no"
+
+
+def _has_event_value(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    return bool(value)
+
+
+def _event_text(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(getattr(value, "value", value)).strip().lower()
 
 
 def _int(value: Any, default: int = 0) -> int:
