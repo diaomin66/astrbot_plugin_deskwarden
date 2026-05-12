@@ -19,8 +19,8 @@
   },
   "rpc_timeout_seconds": {
     "description": "Timeout for local daemon RPC calls.",
-    "type": "number",
+    "type": "float",
     "hint": "Loopback requests should normally use a short timeout.",
-    "default": 3
+    "default": 3.0
   }
 }
