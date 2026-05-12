@@ -130,6 +130,26 @@ class PluginAuthorizationTests(unittest.TestCase):
 
         self.assertIsNone(refusal)
 
+    def test_parse_browser_type_command_preserves_quoted_selector_and_text(self) -> None:
+        parsed = main.DeskWardenPlugin._parse_browser_command('type "#login button" "confirm payment"')
+
+        self.assertEqual(
+            parsed,
+            (
+                "type_text",
+                {"selector": "#login button", "text": "confirm payment"},
+                "Type into isolated browser selector: #login button",
+            ),
+        )
+
+    def test_parse_browser_command_reports_quote_errors(self) -> None:
+        parsed = main.DeskWardenPlugin._parse_browser_command('type "#login" "missing')
+
+        self.assertEqual(
+            parsed,
+            "Browser command could not be parsed. Quote selectors or text that contain spaces.",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
