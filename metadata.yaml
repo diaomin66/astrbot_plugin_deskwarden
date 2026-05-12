@@ -1,0 +1,23 @@
+name: astrbot_plugin_deskwarden
+display_name: DeskWarden
+desc: Owner-only local Windows desktop guard with signed daemon RPC, observation, interaction, approval audit, file sandbox, restricted shell, and isolated browser support.
+version: v0.9.0
+author: DeskWarden
+repo: ""
+short_desc: Owner-only desktop control guard for AstrBot.
+astrbot_version: ">=4.0.0"
+support_platforms:
+  - aiocqhttp
+  - qq_official
+  - telegram
+  - wecom
+  - lark
+  - dingtalk
+  - discord
+  - slack
+  - kook
+  - vocechat
+  - weixin_official_account
+  - satori
+  - misskey
+  - line

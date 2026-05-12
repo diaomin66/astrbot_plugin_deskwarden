@@ -1,0 +1,26 @@
+{
+  "owner_id": {
+    "description": "AstrBot sender_id allowed to use DeskWarden. It must exactly match the owner message sender_id.",
+    "type": "string",
+    "hint": "When empty, every /desk command is refused.",
+    "default": ""
+  },
+  "daemon_url": {
+    "description": "DeskWarden local daemon URL. It must be an HTTP loopback URL.",
+    "type": "string",
+    "hint": "The default daemon listens on http://127.0.0.1:8765.",
+    "default": "http://127.0.0.1:8765"
+  },
+  "data_dir": {
+    "description": "Plugin directory for storing the local shared secret.",
+    "type": "string",
+    "hint": "Do not sync this directory to a public repository.",
+    "default": ".deskwarden"
+  },
+  "rpc_timeout_seconds": {
+    "description": "Timeout for local daemon RPC calls.",
+    "type": "number",
+    "hint": "Loopback requests should normally use a short timeout.",
+    "default": 3
+  }
+}

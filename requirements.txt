@@ -1,0 +1,3 @@
+# Core DeskWarden daemon/plugin code uses the Python standard library.
+# Isolated browser control requires Playwright when --enable-browser is used.
+playwright>=1.44.0
