@@ -292,8 +292,7 @@ class DaemonState:
         except ObserveError as exc:
             result = ActionResult(proposal.id, False, error_code=exc.code, error_message=str(exc))
 
-        self._audit(session_id, user_id, proposal, None, result, redaction)
-        return HTTPStatus.OK, self._action_response(proposal, result, redaction)
+        return self._complete_action(session_id, user_id, proposal, None, result, redaction)
 
     def handle_interaction(self, payload: Mapping[str, Any]) -> tuple[int, dict[str, Any]]:
         session_id, user_id = _context(payload)
@@ -322,14 +321,12 @@ class DaemonState:
             or supplied_proposal.target != target
         ):
             result = ActionResult(proposal.id, False, error_code="PAYLOAD_MISMATCH", error_message="Approved proposal payload does not match the interaction request.")
-            self._audit(session_id, user_id, proposal, approval, result, redaction)
-            return HTTPStatus.OK, self._action_response(proposal, result, redaction)
+            return self._complete_action(session_id, user_id, proposal, approval, result, redaction)
 
         error = self._preflight_action(proposal, approval, needs_approval, user_id)
         if error is not None:
             result = error
-            self._audit(session_id, user_id, proposal, approval, result, redaction)
-            return HTTPStatus.OK, self._action_response(proposal, result, redaction)
+            return self._complete_action(session_id, user_id, proposal, approval, result, redaction)
 
         try:
             active = self.observer.active_window()
@@ -351,8 +348,7 @@ class DaemonState:
         except ObserveError as exc:
             result = ActionResult(proposal.id, False, error_code=exc.code, error_message=str(exc))
 
-        self._audit(session_id, user_id, proposal, approval, result, redaction)
-        return HTTPStatus.OK, self._action_response(proposal, result, redaction)
+        return self._complete_action(session_id, user_id, proposal, approval, result, redaction)
 
     def handle_emergency_stop(self, payload: Mapping[str, Any]) -> tuple[int, dict[str, Any]]:
         session_id, user_id = _context(payload)
@@ -370,8 +366,7 @@ class DaemonState:
             rollback_hint="Restart or explicitly clear the daemon state before resuming actions.",
         )
         result = ActionResult(proposal.id, True, output={"emergency_stopped": True, "state": self.status})
-        self._audit(session_id, user_id, proposal, None, result, False)
-        return HTTPStatus.OK, self._action_response(proposal, result, False)
+        return self._complete_action(session_id, user_id, proposal, None, result, False)
 
     def handle_file_read(self, payload: Mapping[str, Any]) -> tuple[int, dict[str, Any]]:
         session_id, user_id = _context(payload)
@@ -393,8 +388,7 @@ class DaemonState:
         except FileSandboxError as exc:
             result = ActionResult(proposal.id, False, error_code=exc.code, error_message=str(exc))
 
-        self._audit(session_id, user_id, proposal, None, result, False)
-        return HTTPStatus.OK, self._action_response(proposal, result, False)
+        return self._complete_action(session_id, user_id, proposal, None, result, False)
 
     def handle_file_diff(self, payload: Mapping[str, Any]) -> tuple[int, dict[str, Any]]:
         session_id, user_id = _context(payload)
@@ -417,7 +411,7 @@ class DaemonState:
         except FileSandboxError as exc:
             result = ActionResult(proposal.id, False, error_code=exc.code, error_message=str(exc))
 
-        return HTTPStatus.OK, self._action_response(proposal, result, False)
+        return self._complete_action(session_id, user_id, proposal, None, result, False)
 
     def handle_file_write(self, payload: Mapping[str, Any]) -> tuple[int, dict[str, Any]]:
         session_id, user_id = _context(payload)
@@ -444,8 +438,7 @@ class DaemonState:
             error = self._preflight_action(proposal, approval, True, user_id)
         if error is not None:
             result = error
-            self._audit(session_id, user_id, proposal, approval, result, False)
-            return HTTPStatus.OK, self._action_response(proposal, result, False)
+            return self._complete_action(session_id, user_id, proposal, approval, result, False)
 
         try:
             write_result = self.file_sandbox.write_text(path, content, proposal.id)
@@ -453,8 +446,7 @@ class DaemonState:
         except FileSandboxError as exc:
             result = ActionResult(proposal.id, False, error_code=exc.code, error_message=str(exc))
 
-        self._audit(session_id, user_id, proposal, approval, result, False)
-        return HTTPStatus.OK, self._action_response(proposal, result, False)
+        return self._complete_action(session_id, user_id, proposal, approval, result, False)
 
     def handle_shell_plan(self, payload: Mapping[str, Any]) -> tuple[int, dict[str, Any]]:
         session_id, user_id = _context(payload)
@@ -493,8 +485,7 @@ class DaemonState:
             error_code=result.error_code,
             error_message=result.error_message,
         )
-        self._audit(session_id, user_id, proposal, None, result, False)
-        return HTTPStatus.OK, self._action_response(proposal, result, False)
+        return self._complete_action(session_id, user_id, proposal, None, result, False)
 
     def handle_shell_run(self, payload: Mapping[str, Any]) -> tuple[int, dict[str, Any]]:
         session_id, user_id = _context(payload)
@@ -524,19 +515,16 @@ class DaemonState:
 
         if plan_error is not None:
             result = plan_error
-            self._audit(session_id, user_id, proposal, approval, result, False)
-            return HTTPStatus.OK, self._action_response(proposal, result, False)
+            return self._complete_action(session_id, user_id, proposal, approval, result, False)
 
         if proposal.action_type != "shell_run" or dict(proposal.payload) != expected_payload:
             result = ActionResult(proposal.id, False, error_code="PAYLOAD_MISMATCH", error_message="Approved shell payload does not match the run request.")
-            self._audit(session_id, user_id, proposal, approval, result, False)
-            return HTTPStatus.OK, self._action_response(proposal, result, False)
+            return self._complete_action(session_id, user_id, proposal, approval, result, False)
 
         error = self._preflight_action(proposal, approval, True, user_id)
         if error is not None:
             result = error
-            self._audit(session_id, user_id, proposal, approval, result, False)
-            return HTTPStatus.OK, self._action_response(proposal, result, False)
+            return self._complete_action(session_id, user_id, proposal, approval, result, False)
 
         try:
             shell_result = self.shell_sandbox.run(command, cwd, timeout_seconds)
@@ -545,8 +533,7 @@ class DaemonState:
         except ShellSandboxError as exc:
             result = ActionResult(proposal.id, False, error_code=exc.code, error_message=str(exc))
 
-        self._audit(session_id, user_id, proposal, approval, result, False)
-        return HTTPStatus.OK, self._action_response(proposal, result, False)
+        return self._complete_action(session_id, user_id, proposal, approval, result, False)
 
     def handle_browser_action(self, payload: Mapping[str, Any]) -> tuple[int, dict[str, Any]]:
         session_id, user_id = _context(payload)
@@ -575,14 +562,12 @@ class DaemonState:
             or supplied_proposal.target != target
         ):
             result = ActionResult(proposal.id, False, error_code="PAYLOAD_MISMATCH", error_message="Approved browser payload does not match the action request.")
-            self._audit(session_id, user_id, proposal, approval, result, False)
-            return HTTPStatus.OK, self._action_response(proposal, result, False)
+            return self._complete_action(session_id, user_id, proposal, approval, result, False)
 
         error = self._preflight_action(proposal, approval, needs_approval, user_id)
         if error is not None:
             result = error
-            self._audit(session_id, user_id, proposal, approval, result, False)
-            return HTTPStatus.OK, self._action_response(proposal, result, False)
+            return self._complete_action(session_id, user_id, proposal, approval, result, False)
 
         try:
             browser_result = self._execute_browser(action_type, action_payload)
@@ -590,8 +575,7 @@ class DaemonState:
         except BrowserSandboxError as exc:
             result = ActionResult(proposal.id, False, error_code=exc.code, error_message=str(exc))
 
-        self._audit(session_id, user_id, proposal, approval, result, False)
-        return HTTPStatus.OK, self._action_response(proposal, result, False)
+        return self._complete_action(session_id, user_id, proposal, approval, result, False)
 
     def handle_audit_latest(self, payload: Mapping[str, Any]) -> tuple[int, dict[str, Any]]:
         limit = _safe_int(payload.get("limit", 10), 10)
@@ -659,6 +643,18 @@ class DaemonState:
     ) -> None:
         self.audit_log.append(AuditRecord.create(session_id, user_id, proposal, approval, result, redaction))
 
+    def _complete_action(
+        self,
+        session_id: str,
+        user_id: str,
+        proposal: ActionProposal,
+        approval: ApprovalRequest | Mapping[str, Any] | None,
+        result: ActionResult,
+        redaction: bool,
+    ) -> tuple[int, dict[str, Any]]:
+        self._audit(session_id, user_id, proposal, approval, result, redaction)
+        return HTTPStatus.OK, self._action_response(proposal, result, redaction)
+
     @staticmethod
     def _action_response(proposal: ActionProposal, result: ActionResult, redaction: bool) -> dict[str, Any]:
         return {
@@ -712,6 +708,23 @@ class DaemonState:
 
 
 def create_handler(state: DaemonState) -> type[BaseHTTPRequestHandler]:
+    signed_routes = {
+        "/observe/screen": lambda payload: state.handle_observe("observe_screen", payload),
+        "/observe/active-window": lambda payload: state.handle_observe("observe_active_window", payload),
+        "/observe/windows": lambda payload: state.handle_observe("list_windows", payload),
+        "/observe/summary": lambda payload: state.handle_observe("summarize_state", payload),
+        "/interact": state.handle_interaction,
+        "/emergency-stop": state.handle_emergency_stop,
+        "/file/read": state.handle_file_read,
+        "/file/diff": state.handle_file_diff,
+        "/file/write": state.handle_file_write,
+        "/shell/plan": state.handle_shell_plan,
+        "/shell/run": state.handle_shell_run,
+        "/browser/action": state.handle_browser_action,
+        "/audit/latest": state.handle_audit_latest,
+        "/audit/purge": state.handle_audit_purge,
+    }
+
     class DeskWardenRequestHandler(BaseHTTPRequestHandler):
         server_version = "DeskWardenDaemon/0.6"
 
@@ -759,23 +772,6 @@ def create_handler(state: DaemonState) -> type[BaseHTTPRequestHandler]:
                     return
                 self._send_json(HTTPStatus.OK, state.rotate_secret())
                 return
-
-            signed_routes = {
-                "/observe/screen": lambda payload: state.handle_observe("observe_screen", payload),
-                "/observe/active-window": lambda payload: state.handle_observe("observe_active_window", payload),
-                "/observe/windows": lambda payload: state.handle_observe("list_windows", payload),
-                "/observe/summary": lambda payload: state.handle_observe("summarize_state", payload),
-                "/interact": state.handle_interaction,
-                "/emergency-stop": state.handle_emergency_stop,
-                "/file/read": state.handle_file_read,
-                "/file/diff": state.handle_file_diff,
-                "/file/write": state.handle_file_write,
-                "/shell/plan": state.handle_shell_plan,
-                "/shell/run": state.handle_shell_run,
-                "/browser/action": state.handle_browser_action,
-                "/audit/latest": state.handle_audit_latest,
-                "/audit/purge": state.handle_audit_purge,
-            }
 
             handler = signed_routes.get(self.path)
             if handler is None:

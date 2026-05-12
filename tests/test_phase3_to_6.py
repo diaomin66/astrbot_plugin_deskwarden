@@ -191,6 +191,19 @@ class Phase3To6Tests(unittest.TestCase):
         audit = asyncio.run(self.client.audit_latest(10))
         self.assertGreaterEqual(len(audit["records"]), 3)
 
+    def test_file_diff_is_audited_with_redacted_content(self) -> None:
+        path = self.workspace / "note.txt"
+        path.write_text("before\n", encoding="utf-8")
+
+        diff = asyncio.run(self.client.file_diff("session", "owner", str(path), "after\n"))
+        self.assertTrue(diff.result.ok)
+
+        audit = asyncio.run(self.client.audit_latest(1))
+        record = audit["records"][0]
+        self.assertEqual(record["proposal"]["action_type"], "file_write")
+        self.assertTrue(record["redaction_applied"])
+        self.assertEqual(record["result"]["output"]["diff"], "[REDACTED]")
+
 
 if __name__ == "__main__":
     unittest.main()

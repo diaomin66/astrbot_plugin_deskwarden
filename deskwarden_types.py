@@ -12,6 +12,7 @@ SENSITIVE_AUDIT_EXACT_KEYS = {
     "authorization",
     "content",
     "cookie",
+    "diff",
     "text",
 }
 SENSITIVE_AUDIT_KEY_FRAGMENTS = {
